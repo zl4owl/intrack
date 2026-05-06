@@ -8,6 +8,10 @@ A program designed to track food donations and manage their redistribution. This
 
 ### Dependancies 
 
+- Pandas
+- SciPy
+- MatPlotLib
+
 
 
 
