@@ -219,3 +219,15 @@ def resolve_recipient_id(value: str) -> str:
     if not match:
         raise ValueError(f"Recipient not found: {value}")
     return str(match["_id"])
+
+
+# Lists donors for selection UIs
+def list_donors(limit: int = 500) -> List[Dict[str, Any]]:
+    cursor = donors_collection().find({}).sort("name", 1).limit(limit)
+    return [_serialize_id(doc) for doc in cursor]
+
+
+# Lists recipients for selection UIs
+def list_recipients(limit: int = 500) -> List[Dict[str, Any]]:
+    cursor = recipients_collection().find({}).sort("name", 1).limit(limit)
+    return [_serialize_id(doc) for doc in cursor]

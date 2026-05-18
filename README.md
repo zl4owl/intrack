@@ -19,10 +19,22 @@ A cli based program designed to track food donations and manage their redistribu
 
 ### Examples
 
-Start interactive console:
+Start the Tkinter GUI (default):
 
 ```bash
 python intrack.py
+```
+
+Use the CLI instead of the GUI:
+
+```bash
+python intrack.py --no-gui list-donations --status available --limit 10
+```
+
+Start the interactive console (CLI mode):
+
+```bash
+python intrack.py --no-gui
 ```
 
 Register a donor and recipient:
@@ -88,7 +100,7 @@ Short aliases (interactive or CLI):
 Interactive quick entry (type defaults to `organization` if omitted):
 
 ```bash
-python intrack.py
+python intrack.py --no-gui
 intrack> org "FreshMart"
 intrack> add --item "bread,20,loaves,bakery,2026-05-21"
 ```
