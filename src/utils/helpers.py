@@ -1,6 +1,7 @@
 from typing import Dict, Iterable, List
 
 
+# Builds a fixed-width table for CLI output
 def format_table(rows: Iterable[Dict[str, str]], headers: List[str]) -> str:
     rows_list = list(rows)
     if not rows_list:
@@ -19,6 +20,7 @@ def format_table(rows: Iterable[Dict[str, str]], headers: List[str]) -> str:
     return "\n".join([header_line, separator, body])
 
 
+# Formats key/value pairs in aligned columns
 def format_key_values(values: Dict[str, str]) -> str:
     width = max((len(k) for k in values), default=0)
     return "\n".join(f"{k.rjust(width)} : {v}" for k, v in values.items())

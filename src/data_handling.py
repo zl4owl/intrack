@@ -10,15 +10,18 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 from bson import ObjectId
 
+# Connection defaults for central database
 DEFAULT_MONGODB_URI = (
     "mongodb+srv://nova:2oyIpZLPfJMysdKI@cluster0.gp3j6cm.mongodb.net/?appName=Cluster0"
 )
 DEFAULT_DB_NAME = "food_donations"
 
+# Cached client/database to avoid reconnect churn
 _client_cache: Optional[MongoClient] = None
 _db_cache: Optional[Database] = None
 
 
+# Returns a cached Mongo client, with env override
 def get_client() -> MongoClient:
     """Return a cached Mongo client; allow env override for local testing."""
     global _client_cache
@@ -28,6 +31,7 @@ def get_client() -> MongoClient:
     return _client_cache
 
 
+# Returns the central donations database
 def get_db() -> Database:
     """Return the central donations database."""
     global _db_cache
@@ -37,6 +41,7 @@ def get_db() -> Database:
     return _db_cache
 
 
+# Collection accessors
 def donors_collection() -> Collection:
     return get_db()["donors"]
 
@@ -51,10 +56,12 @@ def donations_collection() -> Collection:
 
 # ---- Pure helpers for validation / tests ----
 
+# Normalizes item names for consistent storage/search
 def normalize_item_name(name: str) -> str:
     return " ".join(name.strip().split()).lower()
 
 
+# Validates dates and normalizes to ISO YYYY-MM-DD
 def parse_iso_date(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
@@ -63,6 +70,7 @@ def parse_iso_date(value: Optional[str]) -> Optional[str]:
     return parsed.isoformat()
 
 
+# Builds a normalized donation document for storage
 def build_donation_doc(
     donor_id: str,
     items: Iterable[Dict[str, Any]],
@@ -91,6 +99,7 @@ def build_donation_doc(
 
 # ---- CRUD operations ----
 
+# Inserts a donor record and returns its id
 def register_donor(
     name: str,
     donor_type: str,
@@ -108,6 +117,7 @@ def register_donor(
     return str(result.inserted_id)
 
 
+# Inserts a recipient record and returns its id
 def register_recipient(
     name: str,
     recipient_type: str,
@@ -125,6 +135,7 @@ def register_recipient(
     return str(result.inserted_id)
 
 
+# Inserts a donation record and returns its id
 def add_donation(
     donor_id: str,
     items: Iterable[Dict[str, Any]],
@@ -136,6 +147,7 @@ def add_donation(
     return str(result.inserted_id)
 
 
+# Updates donation status by id
 def update_donation_status(donation_id: str, status: str) -> int:
     result = donations_collection().update_one(
         {"_id": _to_object_id(donation_id)}, {"$set": {"status": status}}
@@ -143,6 +155,7 @@ def update_donation_status(donation_id: str, status: str) -> int:
     return result.modified_count
 
 
+# Lists recent donations with optional status filter
 def list_donations(
     status: Optional[str] = None,
     limit: int = 50,
@@ -154,6 +167,7 @@ def list_donations(
     return [_serialize_id(doc) for doc in cursor]
 
 
+# Aggregates donation counts by status
 def summary_by_status() -> Dict[str, int]:
     pipeline = [
         {"$group": {"_id": "$status", "count": {"$sum": 1}}},
@@ -163,10 +177,12 @@ def summary_by_status() -> Dict[str, int]:
     return {row["_id"]: row["count"] for row in results}
 
 
+# Coerces string ids to ObjectId
 def _to_object_id(value: str) -> ObjectId:
     return ObjectId(value)
 
 
+# Converts ObjectId to string for CLI output
 def _serialize_id(doc: Dict[str, Any]) -> Dict[str, Any]:
     doc = dict(doc)
     if "_id" in doc:
@@ -174,15 +190,18 @@ def _serialize_id(doc: Dict[str, Any]) -> Dict[str, Any]:
     return doc
 
 
+# Checks if a string is a valid ObjectId
 def _is_object_id(value: str) -> bool:
     return ObjectId.is_valid(value)
 
 
+# Finds a record by case-insensitive exact name
 def _find_one_by_name(collection: Collection, name: str) -> Optional[Dict[str, Any]]:
     pattern = f"^{re.escape(name.strip())}$"
     return collection.find_one({"name": {"$regex": pattern, "$options": "i"}})
 
 
+# Resolves donor name or id to canonical id
 def resolve_donor_id(value: str) -> str:
     if _is_object_id(value):
         return value
@@ -192,6 +211,7 @@ def resolve_donor_id(value: str) -> str:
     return str(match["_id"])
 
 
+# Resolves recipient name or id to canonical id
 def resolve_recipient_id(value: str) -> str:
     if _is_object_id(value):
         return value
