@@ -1,5 +1,11 @@
-import pymongo as pm
+# import statement
+import math
+import scipy as sp
+import plotly as plt
+import seaborn as sns
+import pandas as pd
 from pymongo import MongoClient
+
 
 # connect to mongodb project
 client = MongoClient('mongodb+srv://nova:2oyIpZLPfJMysdKI@cluster0.gp3j6cm.mongodb.net/?appName=Cluster0')

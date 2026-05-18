@@ -1,0 +1,5 @@
+scipy>=1.17.1
+pandas>=3.0.2
+pymongo>=0.15
+seaborn>=0.12.2
+plotly>=6.5.0
