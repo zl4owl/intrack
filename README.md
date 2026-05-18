@@ -60,6 +60,24 @@ python intrack.py update-status DONATION_ID reserved
 python intrack.py summary
 ```
 
+Seed demo data (four donors, four recipients, and random donations):
+
+```bash
+python3 seed_data.py
+```
+
+Delete only the seeded demo data:
+
+```bash
+python3 seed_data.py --delete-seeded
+```
+
+Clear all donors, recipients, and donations:
+
+```bash
+python3 seed_data.py --clear-db
+```
+
 ## User Documentation
 
 ### What This Tool Does
