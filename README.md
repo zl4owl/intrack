@@ -1,20 +1,16 @@
-# AS 91896 & AS 91897 - Computer Program
+# Intrack
 
 ## Description
 
 ### Summery
 
-A program designed to track food donations and manage their redistribution. This program has a focus on intuitiveness, elegance, and efficiency.  
+A cli based program designed to track food donations and manage their redistribution. This program has a focus on intuitiveness, elegance, and efficiency.  
 
 ### Dependancies 
 
 - Pandas
 - SciPy
 - MatPlotLib
-
-## Command Line Usage
-
-This CLI tracks food donations for supermarkets, organizations, and institutions using a central MongoDB database.
 
 ### Environment
 
@@ -23,17 +19,23 @@ This CLI tracks food donations for supermarkets, organizations, and institutions
 
 ### Examples
 
+Start interactive console:
+
+```bash
+python intrack.py
+```
+
 Register a donor and recipient:
 
 ```bash
-python program.py register-donor "FreshMart" supermarket "donations@freshmart.co" "12 Main St"
-python program.py register-recipient "City Foodbank" foodbank "intake@cityfb.org" "88 Relief Rd"
+python intrack.py register-donor "FreshMart" supermarket "donations@freshmart.co" "12 Main St"
+python intrack.py register-recipient "City Foodbank" foodbank "intake@cityfb.org" "88 Relief Rd"
 ```
 
 Add a donation batch with multiple items:
 
 ```bash
-python program.py add-donation DONOR_ID \
+python intrack.py add-donation DONOR_ID \
   --item "apples,25,kg,produce,2026-05-25" \
   --item "canned beans,80,units,pantry,2027-01-01"
 ```
@@ -41,9 +43,9 @@ python program.py add-donation DONOR_ID \
 List and update:
 
 ```bash
-python program.py list-donations --status available --limit 10
-python program.py update-status DONATION_ID reserved
-python program.py summary
+python intrack.py list-donations --status available --limit 10
+python intrack.py update-status DONATION_ID reserved
+python intrack.py summary
 ```
 
 ## User Documentation
@@ -74,22 +76,38 @@ Tracks food donations from donors (supermarkets, farms, restaurants) to recipien
 
 ### Commands
 
+Short aliases (interactive or CLI):
+
+- `reg-donor` → `register-donor`
+- `reg-rec` → `register-recipient`
+- `add` → `add-donation`
+- `list` → `list-donations`
+- `status` → `update-status`
+- `sum` → `summary`
+
+Interactive quick entry (type defaults to `organization` if omitted):
+
+```bash
+python intrack.py
+intrack> reg-rec "titirangi local board" "titirangi@local.govt.nz"
+```
+
 Register donor:
 
 ```bash
-python program.py register-donor "NAME" "TYPE" "CONTACT" "ADDRESS"
+python intrack.py register-donor "NAME" "TYPE" "CONTACT" "ADDRESS"
 ```
 
 Register recipient:
 
 ```bash
-python program.py register-recipient "NAME" "TYPE" "CONTACT" "ADDRESS"
+python intrack.py register-recipient "NAME" "TYPE" "CONTACT" "ADDRESS"
 ```
 
 Add donation (repeat `--item`):
 
 ```bash
-python program.py add-donation DONOR_ID \
+python intrack.py add-donation DONOR_ID \
   --item "NAME,QUANTITY[,UNIT,CATEGORY,EXPIRY_DATE]" \
   --item "NAME,QUANTITY[,UNIT,CATEGORY,EXPIRY_DATE]"
 ```
@@ -97,19 +115,19 @@ python program.py add-donation DONOR_ID \
 List donations:
 
 ```bash
-python program.py list-donations --status available --limit 10
+python intrack.py list-donations --status available --limit 10
 ```
 
 Update status:
 
 ```bash
-python program.py update-status DONATION_ID reserved
+python intrack.py update-status DONATION_ID reserved
 ```
 
 Summary:
 
 ```bash
-python program.py summary
+python intrack.py summary
 ```
 
 ### Environment Variables

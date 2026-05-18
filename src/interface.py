@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 from typing import Dict, List, Optional
 
 from .data_handling import (
@@ -14,7 +15,16 @@ from .data_handling import (
 from .utils.helpers import format_key_values, format_table
 
 STATUS_CHOICES = ["available", "reserved", "picked_up", "distributed", "expired"]
+DEFAULT_ORG_TYPE = "organization"
 
+COMMAND_ALIASES = {
+    "reg-donor": "register-donor",
+    "reg-rec": "register-recipient",
+    "add": "add-donation",
+    "list": "list-donations",
+    "status": "update-status",
+    "sum": "summary",
+}
 
 def _parse_item_arg(value: str) -> Dict[str, str]:
     parts = [p.strip() for p in value.split(",")]
@@ -41,21 +51,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    donor = subparsers.add_parser("register-donor", help="Register a donor.")
+    donor = subparsers.add_parser(
+        "register-donor",
+        aliases=["reg-donor"],
+        help="Register a donor.",
+    )
     donor.add_argument("name")
-    donor.add_argument("type", help="e.g., supermarket, restaurant, farm")
+    donor.add_argument("type")
     donor.add_argument("contact")
     donor.add_argument("address", nargs="?")
 
     recipient = subparsers.add_parser(
-        "register-recipient", help="Register a recipient organization."
+        "register-recipient",
+        aliases=["reg-rec"],
+        help="Register a recipient organization.",
     )
     recipient.add_argument("name")
-    recipient.add_argument("type", help="e.g., foodbank, shelter, school")
+    recipient.add_argument("type")
     recipient.add_argument("contact")
     recipient.add_argument("address", nargs="?")
 
-    donation = subparsers.add_parser("add-donation", help="Add a donation batch.")
+    donation = subparsers.add_parser(
+        "add-donation",
+        aliases=["add"],
+        help="Add a donation batch.",
+    )
     donation.add_argument("donor_id")
     donation.add_argument(
         "--item",
@@ -67,25 +87,28 @@ def build_parser() -> argparse.ArgumentParser:
     donation.add_argument("--recipient-id")
     donation.add_argument("--status", choices=STATUS_CHOICES, default="available")
 
-    list_cmd = subparsers.add_parser("list-donations", help="List donations.")
+    list_cmd = subparsers.add_parser(
+        "list-donations",
+        aliases=["list"],
+        help="List donations.",
+    )
     list_cmd.add_argument("--status", choices=STATUS_CHOICES)
     list_cmd.add_argument("--limit", type=int, default=25)
 
     update_cmd = subparsers.add_parser(
-        "update-status", help="Update donation status."
+        "update-status",
+        aliases=["status"],
+        help="Update donation status.",
     )
     update_cmd.add_argument("donation_id")
     update_cmd.add_argument("status", choices=STATUS_CHOICES)
 
-    subparsers.add_parser("summary", help="Show donation counts by status.")
+    subparsers.add_parser("summary", aliases=["sum"], help="Show donation counts by status.")
 
     return parser
 
 
-def run_cli(args: Optional[List[str]] = None) -> int:
-    parser = build_parser()
-    parsed = parser.parse_args(args=args)
-
+def _execute_command(parsed: argparse.Namespace) -> int:
     if parsed.command == "register-donor":
         donor_id = register_donor(parsed.name, parsed.type, parsed.contact, parsed.address)
         print(format_key_values({"donor_id": donor_id}))
@@ -139,5 +162,60 @@ def run_cli(args: Optional[List[str]] = None) -> int:
         ))
         return 0
 
-    parser.error("Unknown command")
-    return 2
+    raise ValueError("Unknown command")
+
+
+def run_cli(args: Optional[List[str]] = None) -> int:
+    parser = build_parser()
+    parsed = parser.parse_args(args=args)
+    return _execute_command(parsed)
+
+
+def run_console() -> int:
+    parser = build_parser()
+    print("Intrack interactive console. Type 'help' or 'exit'.")
+    while True:
+        try:
+            line = input("intrack> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+
+        if not line:
+            continue
+
+        if line in {"exit", "quit"}:
+            return 0
+
+        if line.startswith("help"):
+            parts = shlex.split(line)
+            if len(parts) == 1:
+                parser.print_help()
+                continue
+            try:
+                parser.parse_args([parts[1], "--help"])
+            except SystemExit:
+                pass
+            continue
+
+        try:
+            raw_tokens = shlex.split(line)
+            parsed = parser.parse_args(_normalize_console_tokens(raw_tokens))
+        except SystemExit:
+            continue
+
+        _execute_command(parsed)
+
+
+
+def _normalize_console_tokens(tokens: List[str]) -> List[str]:
+    if not tokens:
+        return tokens
+    command = COMMAND_ALIASES.get(tokens[0], tokens[0])
+    tokens = [command] + tokens[1:]
+
+    if command in {"register-donor", "register-recipient"}:
+        # If user entered just name + contact, insert default type
+        if len(tokens) == 3:
+            tokens.insert(2, DEFAULT_ORG_TYPE)
+    return tokens

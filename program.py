@@ -1,5 +1,5 @@
-from src import run_cli
+from intrack import main
 
 
 if __name__ == "__main__":
-    raise SystemExit(run_cli())
+    raise SystemExit(main())
