@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
+import re
 
 from pymongo import MongoClient
 from pymongo.collection import Collection
@@ -171,3 +172,30 @@ def _serialize_id(doc: Dict[str, Any]) -> Dict[str, Any]:
     if "_id" in doc:
         doc["_id"] = str(doc["_id"])
     return doc
+
+
+def _is_object_id(value: str) -> bool:
+    return ObjectId.is_valid(value)
+
+
+def _find_one_by_name(collection: Collection, name: str) -> Optional[Dict[str, Any]]:
+    pattern = f"^{re.escape(name.strip())}$"
+    return collection.find_one({"name": {"$regex": pattern, "$options": "i"}})
+
+
+def resolve_donor_id(value: str) -> str:
+    if _is_object_id(value):
+        return value
+    match = _find_one_by_name(donors_collection(), value)
+    if not match:
+        raise ValueError(f"Donor not found: {value}")
+    return str(match["_id"])
+
+
+def resolve_recipient_id(value: str) -> str:
+    if _is_object_id(value):
+        return value
+    match = _find_one_by_name(recipients_collection(), value)
+    if not match:
+        raise ValueError(f"Recipient not found: {value}")
+    return str(match["_id"])

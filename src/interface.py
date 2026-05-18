@@ -3,12 +3,15 @@ from __future__ import annotations
 import argparse
 import shlex
 from typing import Dict, List, Optional
+from dataclasses import dataclass
 
 from .data_handling import (
     add_donation,
     list_donations,
     register_donor,
     register_recipient,
+    resolve_donor_id,
+    resolve_recipient_id,
     summary_by_status,
     update_donation_status,
 )
@@ -24,7 +27,13 @@ COMMAND_ALIASES = {
     "list": "list-donations",
     "status": "update-status",
     "sum": "summary",
+    "org": "use-org",
 }
+
+@dataclass
+class ConsoleState:
+    current_donor_id: Optional[str] = None
+
 
 def _parse_item_arg(value: str) -> Dict[str, str]:
     parts = [p.strip() for p in value.split(",")]
@@ -76,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
         aliases=["add"],
         help="Add a donation batch.",
     )
-    donation.add_argument("donor_id")
+    donation.add_argument("donor_id", nargs="?")
     donation.add_argument(
         "--item",
         action="append",
@@ -103,12 +112,19 @@ def build_parser() -> argparse.ArgumentParser:
     update_cmd.add_argument("donation_id")
     update_cmd.add_argument("status", choices=STATUS_CHOICES)
 
+    use_org = subparsers.add_parser(
+        "use-org",
+        aliases=["org"],
+        help="Set current donor organization (console).",
+    )
+    use_org.add_argument("donor", help="Donor name or id")
+
     subparsers.add_parser("summary", aliases=["sum"], help="Show donation counts by status.")
 
     return parser
 
 
-def _execute_command(parsed: argparse.Namespace) -> int:
+def _execute_command(parsed: argparse.Namespace, state: Optional[ConsoleState] = None) -> int:
     if parsed.command == "register-donor":
         donor_id = register_donor(parsed.name, parsed.type, parsed.contact, parsed.address)
         print(format_key_values({"donor_id": donor_id}))
@@ -121,11 +137,27 @@ def _execute_command(parsed: argparse.Namespace) -> int:
         print(format_key_values({"recipient_id": recipient_id}))
         return 0
 
+    if parsed.command == "use-org":
+        resolved = resolve_donor_id(parsed.donor)
+        if state is not None:
+            state.current_donor_id = resolved
+        print(format_key_values({"current_donor_id": resolved}))
+        return 0
+
     if parsed.command == "add-donation":
+        donor_value = parsed.donor_id or (state.current_donor_id if state else None)
+        if not donor_value:
+            raise ValueError("Donor id or name is required. Use 'use-org' in console.")
+        donor_id = resolve_donor_id(donor_value)
+        recipient_id = (
+            resolve_recipient_id(parsed.recipient_id)
+            if parsed.recipient_id
+            else None
+        )
         donation_id = add_donation(
-            parsed.donor_id,
+            donor_id,
             parsed.item,
-            recipient_id=parsed.recipient_id,
+            recipient_id=recipient_id,
             status=parsed.status,
         )
         print(format_key_values({"donation_id": donation_id}))
@@ -173,6 +205,7 @@ def run_cli(args: Optional[List[str]] = None) -> int:
 
 def run_console() -> int:
     parser = build_parser()
+    state = ConsoleState()
     print("Intrack interactive console. Type 'help' or 'exit'.")
     while True:
         try:
@@ -204,7 +237,10 @@ def run_console() -> int:
         except SystemExit:
             continue
 
-        _execute_command(parsed)
+        try:
+            _execute_command(parsed, state=state)
+        except ValueError as exc:
+            print(str(exc))
 
 
 

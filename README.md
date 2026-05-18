@@ -28,8 +28,8 @@ python intrack.py
 Register a donor and recipient:
 
 ```bash
-python intrack.py register-donor "FreshMart" supermarket "donations@freshmart.co" "12 Main St"
-python intrack.py register-recipient "City Foodbank" foodbank "intake@cityfb.org" "88 Relief Rd"
+python intrack.py register-donor "Freshchoice" supermarket "office@freshchoicetitirangi.co.nz" "429 Titirangi Road, Titirangi, Auckland 0604"
+python intrack.py register-recipient "Auckland City Mission" foodbank "info@aucklandcitymission.org.nz" "127 Symonds Street"
 ```
 
 Add a donation batch with multiple items:
@@ -52,7 +52,7 @@ python intrack.py summary
 
 ### What This Tool Does
 
-Tracks food donations from donors (supermarkets, farms, restaurants) to recipients (foodbanks, shelters, schools) in a central MongoDB database.
+Tracks food donations from donors (supermarkets, farms, restaurants) to recipients (foodbanks, shelters, schools) in a database.
 
 ### Data
 
@@ -67,7 +67,7 @@ Tracks food donations from donors (supermarkets, farms, restaurants) to recipien
 
 ### Management & Transfer of Data
 
-1. CLI input → parsed in `src/interface.py` and validated for structure.
+1. CLI input → parsed in `src/interface.py`.
 2. Normalization → item names are lowercased/trimmed; dates are validated as `YYYY-MM-DD` in `src/data_handling.py`.
 3. Document creation → donation docs are built with normalized items and UTC timestamps.
 4. Database write → MongoDB inserts are performed on the central DB collections.
@@ -89,7 +89,8 @@ Interactive quick entry (type defaults to `organization` if omitted):
 
 ```bash
 python intrack.py
-intrack> reg-rec "titirangi local board" "titirangi@local.govt.nz"
+intrack> org "FreshMart"
+intrack> add --item "bread,20,loaves,bakery,2026-05-21"
 ```
 
 Register donor:
@@ -107,9 +108,9 @@ python intrack.py register-recipient "NAME" "TYPE" "CONTACT" "ADDRESS"
 Add donation (repeat `--item`):
 
 ```bash
-python intrack.py add-donation DONOR_ID \
+python intrack.py add-donation DONOR_NAME_OR_ID \
   --item "NAME,QUANTITY[,UNIT,CATEGORY,EXPIRY_DATE]" \
-  --item "NAME,QUANTITY[,UNIT,CATEGORY,EXPIRY_DATE]"
+  --recipient-id "RECIPIENT_NAME_OR_ID"
 ```
 
 List donations:
