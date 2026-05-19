@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
@@ -33,8 +34,42 @@ class IntrackGUI(tk.Tk):
         self._donation_items: List[Dict[str, str]] = []
         self.current_org_id: Optional[str] = None
 
+        self._apply_window_icon()
         self._build_ui()
         self._refresh_options()
+
+    def _apply_window_icon(self) -> None:
+        asset_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", ".assets", "icon.png"
+        )
+        asset_path = os.path.normpath(asset_path)
+        if not os.path.exists(asset_path):
+            return
+        try:
+            icon = tk.PhotoImage(file=asset_path)
+            padded = self._pad_icon(icon, 0.10)
+            self.iconphoto(True, padded)
+            self._icon_ref = padded
+        except tk.TclError:
+            pass
+
+    def _pad_icon(self, icon: tk.PhotoImage, padding_ratio: float) -> tk.PhotoImage:
+        width = icon.width()
+        height = icon.height()
+        if padding_ratio <= 0:
+            return icon
+        target_width = max(
+            int(round(width / (1.0 - (2.0 * padding_ratio)))), width + 1
+        )
+        target_height = max(
+            int(round(height / (1.0 - (2.0 * padding_ratio)))), height + 1
+        )
+        padded = tk.PhotoImage(width=target_width, height=target_height)
+        offset_x = (target_width - width) // 2
+        offset_y = (target_height - height) // 2
+        padded.tk.call(padded, "copy", icon, "-from", 0, 0, width, height,
+                       "-to", offset_x, offset_y)
+        return padded
 
     def _build_ui(self) -> None:
         style = ttk.Style(self)
@@ -411,6 +446,7 @@ class IntrackGUI(tk.Tk):
         }
         self._donation_items.append(item)
         self.items_list.insert(
+            "",
             "end",
             values=(
                 item["name"],
@@ -500,6 +536,7 @@ class IntrackGUI(tk.Tk):
             self.donations_list.delete(row)
         for row in rows:
             self.donations_list.insert(
+                "",
                 "end",
                 values=(
                     row.get("_id"),
@@ -539,4 +576,3 @@ def run_gui() -> int:
     app = IntrackGUI()
     app.mainloop()
     return 0
-

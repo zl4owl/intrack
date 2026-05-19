@@ -1,20 +1,26 @@
 from __future__ import annotations
 
 import argparse
+import os
 import random
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
 from bson import ObjectId
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from src.data_handling import (
     add_donation,
     donors_collection,
-    recipients_collection,
     donations_collection,
+    recipients_collection,
     register_donor,
     register_recipient,
 )
-
 
 DEFAULT_DONORS = [
     {
@@ -220,13 +226,17 @@ def main() -> int:
 
     if args.clear_db:
         results = _clear_db()
-        print(f"Cleared donors={results['donors']}, recipients={results['recipients']}, donations={results['donations']}")
+        print(
+            f"Cleared donors={results['donors']}, recipients={results['recipients']}, "
+            f"donations={results['donations']}"
+        )
         return 0
 
     if args.delete_seeded:
         results = _delete_seeded(seed_tag)
         print(
-            f"Deleted donors={results['donors']}, recipients={results['recipients']}, donations={results['donations']}"
+            f"Deleted donors={results['donors']}, recipients={results['recipients']}, "
+            f"donations={results['donations']}"
         )
         return 0
 
@@ -244,10 +254,12 @@ def main() -> int:
         args.donations_max,
     )
     print(
-        f"Seeded donors={len(ids['donors'])}, recipients={len(ids['recipients'])}, donations={len(donation_ids)}"
+        f"Seeded donors={len(ids['donors'])}, recipients={len(ids['recipients'])}, "
+        f"donations={len(donation_ids)}"
     )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
