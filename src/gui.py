@@ -355,8 +355,13 @@ class IntrackGUI(tk.Tk):
         self._output.configure(state="disabled")
 
     def _refresh_options(self) -> None:
-        donors = list_donors()
-        recipients = list_recipients()
+        # Refresh selectable orgs; keep UI responsive even if the DB is down.
+        try:
+            donors = list_donors()
+            recipients = list_recipients()
+        except Exception as exc:
+            self._append_output(str(exc))
+            return
 
         self._donor_options = {self._format_option(d): d["_id"] for d in donors}
         self._donor_by_id = {d["_id"]: self._format_option(d) for d in donors}
@@ -484,6 +489,7 @@ class IntrackGUI(tk.Tk):
         self._clear_item_fields()
 
     def _validate_item_fields(self) -> tuple[Dict[str, str], Optional[str]]:
+        # Validate required fields, numeric quantity, and optional expiry format.
         name = self.item_name.get().strip()
         quantity_text = self.item_quantity.get().strip()
         unit = self.item_unit.get().strip() or "units"
@@ -503,7 +509,7 @@ class IntrackGUI(tk.Tk):
         if expiry:
             try:
                 datetime.strptime(expiry, "%Y-%m-%d")
-            except ValueError:
+            except (ValueError, TypeError):
                 return {}, "Expiry date must be YYYY-MM-DD."
 
         return {
@@ -587,6 +593,7 @@ class IntrackGUI(tk.Tk):
         self._clear_item_fields()
 
     def _resolve_donor(self) -> Optional[str]:
+        # Prefer explicit donor selection; fall back to current org if set.
         donor_value = self._pick_value(
             self.donation_donor_combo, self.donation_donor_entry, self._donor_options
         )
@@ -597,6 +604,7 @@ class IntrackGUI(tk.Tk):
         return None
 
     def _on_add_donation(self) -> None:
+        # Compose payload from staged items and submit a single donation record.
         if not self._donation_items:
             self._append_output("Add at least one item before submitting.")
             return
@@ -633,6 +641,7 @@ class IntrackGUI(tk.Tk):
             self._append_output(str(exc))
 
     def _on_list_donations(self) -> None:
+        # List donations with server-side expiry updates handled in data layer.
         try:
             limit = int(self.list_limit.get() or "25")
             status = self.list_status.get().strip() or None

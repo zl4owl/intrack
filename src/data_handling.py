@@ -6,6 +6,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import re
 
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 from pymongo.collection import Collection
 from pymongo.database import Database
 from bson import ObjectId
@@ -27,7 +28,10 @@ def get_client() -> MongoClient:
     global _client_cache
     if _client_cache is None:
         uri = os.getenv("MONGODB_URI", DEFAULT_MONGODB_URI)
-        _client_cache = MongoClient(uri)
+        try:
+            _client_cache = MongoClient(uri)
+        except PyMongoError as exc:
+            raise RuntimeError("MongoDB connection failed.") from exc
     return _client_cache
 
 
@@ -61,7 +65,7 @@ def normalize_item_name(name: str) -> str:
     return " ".join(name.strip().split()).lower()
 
 
-# Validates dates and normalizes to ISO YYYY-MM-DD
+# Validates dates and normalizes to ISO YYYY-MM-DD (raises on invalid formats)
 def parse_iso_date(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
@@ -70,7 +74,7 @@ def parse_iso_date(value: Optional[str]) -> Optional[str]:
     return parsed.isoformat()
 
 
-# Builds a normalized donation document for storage
+# Builds a normalized donation document for storage (normalizes names/quantities)
 def build_donation_doc(
     donor_id: str,
     items: Iterable[Dict[str, Any]],
@@ -97,6 +101,23 @@ def build_donation_doc(
     }
 
 
+# Expires donations with any item past the given date (YYYY-MM-DD)
+def auto_expire_donations(today: Optional[str] = None) -> int:
+    if today is None:
+        today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        result = donations_collection().update_many(
+            {
+                "status": {"$in": ["available", "reserved"]},
+                "items": {"$elemMatch": {"expiry_date": {"$lt": today}}},
+            },
+            {"$set": {"status": "expired", "expired_at": today}},
+        )
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while expiring donations.") from exc
+    return result.modified_count
+
+
 # ---- CRUD operations ----
 
 # Inserts a donor record and returns its id
@@ -113,8 +134,11 @@ def register_donor(
         "address": (address or "").strip(),
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
-    result = donors_collection().insert_one(doc)
-    return str(result.inserted_id)
+    try:
+        result = donors_collection().insert_one(doc)
+        return str(result.inserted_id)
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while registering donor.") from exc
 
 
 # Inserts a recipient record and returns its id
@@ -131,8 +155,11 @@ def register_recipient(
         "address": (address or "").strip(),
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
-    result = recipients_collection().insert_one(doc)
-    return str(result.inserted_id)
+    try:
+        result = recipients_collection().insert_one(doc)
+        return str(result.inserted_id)
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while registering recipient.") from exc
 
 
 # Inserts a donation record and returns its id
@@ -143,16 +170,22 @@ def add_donation(
     status: str = "available",
 ) -> str:
     doc = build_donation_doc(donor_id, items, recipient_id=recipient_id, status=status)
-    result = donations_collection().insert_one(doc)
-    return str(result.inserted_id)
+    try:
+        result = donations_collection().insert_one(doc)
+        return str(result.inserted_id)
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while adding donation.") from exc
 
 
 # Updates donation status by id
 def update_donation_status(donation_id: str, status: str) -> int:
-    result = donations_collection().update_one(
-        {"_id": _to_object_id(donation_id)}, {"$set": {"status": status}}
-    )
-    return result.modified_count
+    try:
+        result = donations_collection().update_one(
+            {"_id": _to_object_id(donation_id)}, {"$set": {"status": status}}
+        )
+        return result.modified_count
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while updating donation status.") from exc
 
 
 # Lists recent donations with optional status filter
@@ -160,21 +193,29 @@ def list_donations(
     status: Optional[str] = None,
     limit: int = 50,
 ) -> List[Dict[str, Any]]:
+    auto_expire_donations()
     query: Dict[str, Any] = {}
     if status:
         query["status"] = status
-    cursor = donations_collection().find(query).sort("created_at", -1).limit(limit)
-    return [_serialize_id(doc) for doc in cursor]
+    try:
+        cursor = donations_collection().find(query).sort("created_at", -1).limit(limit)
+        return [_serialize_id(doc) for doc in cursor]
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while listing donations.") from exc
 
 
 # Aggregates donation counts by status
 def summary_by_status() -> Dict[str, int]:
+    auto_expire_donations()
     pipeline = [
         {"$group": {"_id": "$status", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]
-    results = donations_collection().aggregate(pipeline)
-    return {row["_id"]: row["count"] for row in results}
+    try:
+        results = donations_collection().aggregate(pipeline)
+        return {row["_id"]: row["count"] for row in results}
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while summarizing donations.") from exc
 
 
 # Coerces string ids to ObjectId
@@ -198,7 +239,10 @@ def _is_object_id(value: str) -> bool:
 # Finds a record by case-insensitive exact name
 def _find_one_by_name(collection: Collection, name: str) -> Optional[Dict[str, Any]]:
     pattern = f"^{re.escape(name.strip())}$"
-    return collection.find_one({"name": {"$regex": pattern, "$options": "i"}})
+    try:
+        return collection.find_one({"name": {"$regex": pattern, "$options": "i"}})
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while resolving organization.") from exc
 
 
 # Resolves donor name or id to canonical id
@@ -223,11 +267,17 @@ def resolve_recipient_id(value: str) -> str:
 
 # Lists donors for selection UIs
 def list_donors(limit: int = 500) -> List[Dict[str, Any]]:
-    cursor = donors_collection().find({}).sort("name", 1).limit(limit)
-    return [_serialize_id(doc) for doc in cursor]
+    try:
+        cursor = donors_collection().find({}).sort("name", 1).limit(limit)
+        return [_serialize_id(doc) for doc in cursor]
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while listing donors.") from exc
 
 
 # Lists recipients for selection UIs
 def list_recipients(limit: int = 500) -> List[Dict[str, Any]]:
-    cursor = recipients_collection().find({}).sort("name", 1).limit(limit)
-    return [_serialize_id(doc) for doc in cursor]
+    try:
+        cursor = recipients_collection().find({}).sort("name", 1).limit(limit)
+        return [_serialize_id(doc) for doc in cursor]
+    except PyMongoError as exc:
+        raise RuntimeError("MongoDB error while listing recipients.") from exc
