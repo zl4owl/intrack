@@ -17,12 +17,12 @@ from .data_handling import (
 )
 from .utils.helpers import format_key_values, format_table
 
-# Allowed status values for donations
+# Allow status values for donations
 STATUS_CHOICES = ["available", "reserved", "picked_up", "distributed", "expired"]
-# Default type when user omits organization type
+# Set default type when user omits organization type
 DEFAULT_ORG_TYPE = "organization"
 
-# Short aliases for interactive and CLI usage
+# Create short aliases for interactive and CLI usage
 COMMAND_ALIASES = {
     "reg-donor": "register-donor",
     "reg-rec": "register-recipient",
@@ -33,13 +33,13 @@ COMMAND_ALIASES = {
     "org": "use-org",
 }
 
-# Stores mutable console session state
+# Store mutable console session state
 @dataclass
 class ConsoleState:
     current_donor_id: Optional[str] = None
 
 
-# Parses repeatable item arguments into a normalized dict
+# Parse repeatable item arguments into a normalized dict
 def _parse_item_arg(value: str) -> Dict[str, str]:
     parts = [p.strip() for p in value.split(",")]
     if len(parts) < 2:
@@ -59,7 +59,7 @@ def _parse_item_arg(value: str) -> Dict[str, str]:
     }
 
 
-# Defines all CLI subcommands and arguments
+# Define all CLI subcommands and arguments
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Track food donations for supermarkets and organizations."
@@ -130,7 +130,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Executes a parsed command, optionally using console state
+# Execute parsed command, optionally using console state
 def _execute_command(parsed: argparse.Namespace, state: Optional[ConsoleState] = None) -> int:
     if parsed.command == "register-donor":
         donor_id = register_donor(parsed.name, parsed.type, parsed.contact, parsed.address)
@@ -204,14 +204,14 @@ def _execute_command(parsed: argparse.Namespace, state: Optional[ConsoleState] =
     raise ValueError("Unknown command")
 
 
-# Runs one-shot CLI with provided args
+# Run one-shot CLI with provided args
 def run_cli(args: Optional[List[str]] = None) -> int:
     parser = build_parser()
     parsed = parser.parse_args(args=args)
     return _execute_command(parsed)
 
 
-# Runs the interactive console loop
+# Run the interactive console loop
 def run_console() -> int:
     parser = build_parser()
     state = ConsoleState()
@@ -253,7 +253,7 @@ def run_console() -> int:
 
 
 
-# Normalizes console tokens (aliases + defaults)
+# Normalize console tokens (aliases + defaults)
 def _normalize_console_tokens(tokens: List[str]) -> List[str]:
     if not tokens:
         return tokens

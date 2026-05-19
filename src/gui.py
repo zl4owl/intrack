@@ -5,6 +5,8 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 from typing import Dict, List, Optional
+from datetime import datetime
+import uuid
 
 from .data_handling import (
     add_donation,
@@ -33,6 +35,7 @@ class IntrackGUI(tk.Tk):
         self._recipient_options: Dict[str, str] = {}
         self._donation_items: List[Dict[str, str]] = []
         self.current_org_id: Optional[str] = None
+        self._editing_item_id: Optional[str] = None
 
         self._apply_window_icon()
         self._build_ui()
@@ -196,9 +199,20 @@ class IntrackGUI(tk.Tk):
             self.items_list.heading(col, text=label)
             self.items_list.column(col, width=120, anchor="w")
         self.items_list.grid(row=8, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
+        self.items_list.bind("<Double-1>", lambda _event: self._on_edit_selected())
+
+        item_actions = ttk.Frame(form)
+        item_actions.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        item_actions.columnconfigure(1, weight=1)
+        ttk.Button(item_actions, text="Edit selected", command=self._on_edit_selected).grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Button(item_actions, text="Remove selected", command=self._on_remove_selected).grid(
+            row=0, column=1, sticky="w", padx=(8, 0)
+        )
 
         ttk.Button(form, text="Submit donation", command=self._on_add_donation).grid(
-            row=9, column=0, columnspan=3, sticky="ew", pady=(10, 0)
+            row=10, column=0, columnspan=3, sticky="ew", pady=(10, 0)
         )
 
         list_frame = ttk.Labelframe(tab, text="Recent donations", padding=8)
@@ -226,16 +240,26 @@ class IntrackGUI(tk.Tk):
 
         self.donations_list = ttk.Treeview(
             list_frame,
-            columns=("_id", "donor_id", "status", "created_at", "items"),
+            columns=(
+                "_id",
+                "donor_name",
+                "recipient_name",
+                "status",
+                "created_at",
+                "items",
+                "item_types",
+            ),
             show="headings",
             height=12,
         )
         for col, label, width in [
             ("_id", "ID", 220),
-            ("donor_id", "Donor", 220),
+            ("donor_name", "Donor", 220),
+            ("recipient_name", "Recipient", 220),
             ("status", "Status", 100),
             ("created_at", "Created", 150),
             ("items", "Items", 60),
+            ("item_types", "Item types", 220),
         ]:
             self.donations_list.heading(col, text=label)
             self.donations_list.column(col, width=width, anchor="w")
@@ -426,28 +450,89 @@ class IntrackGUI(tk.Tk):
             self._append_output(str(exc))
 
     def _on_add_item(self) -> None:
-        name = self.item_name.get().strip()
-        quantity = self.item_quantity.get().strip()
-        if not name or not quantity:
-            self._append_output("Item name and quantity are required.")
+        item, error = self._validate_item_fields()
+        if error:
+            self._append_output(error)
             return
-        try:
-            float(quantity)
-        except ValueError:
-            self._append_output("Quantity must be a number.")
-            return
+        if self._editing_item_id:
+            existing = self._find_item_by_id(self._editing_item_id)
+            if not existing:
+                self._append_output("Selected item was not found.")
+                self._editing_item_id = None
+                return
+            existing.update(item)
+            self._update_item_row(existing)
+            self._editing_item_id = None
+            self._append_output("Item updated.")
+        else:
+            item_id = uuid.uuid4().hex
+            item["_ui_id"] = item_id
+            self._donation_items.append(item)
+            self.items_list.insert(
+                "",
+                "end",
+                iid=item_id,
+                values=(
+                    item["name"],
+                    item["quantity"],
+                    item["unit"],
+                    item.get("category") or "",
+                    item.get("expiry_date") or "",
+                ),
+            )
+            self._append_output("Item staged.")
+        self._clear_item_fields()
 
-        item = {
+    def _validate_item_fields(self) -> tuple[Dict[str, str], Optional[str]]:
+        name = self.item_name.get().strip()
+        quantity_text = self.item_quantity.get().strip()
+        unit = self.item_unit.get().strip() or "units"
+        category = self.item_category.get().strip() or None
+        expiry = self.item_expiry.get().strip() or None
+
+        if not name:
+            return {}, "Item name is required."
+        if not quantity_text:
+            return {}, "Quantity is required."
+        try:
+            quantity_value = float(quantity_text)
+        except ValueError:
+            return {}, "Quantity must be a number."
+        if quantity_value <= 0:
+            return {}, "Quantity must be greater than zero."
+        if expiry:
+            try:
+                datetime.strptime(expiry, "%Y-%m-%d")
+            except ValueError:
+                return {}, "Expiry date must be YYYY-MM-DD."
+
+        return {
             "name": name,
-            "quantity": quantity,
-            "unit": self.item_unit.get().strip() or "units",
-            "category": self.item_category.get().strip() or None,
-            "expiry_date": self.item_expiry.get().strip() or None,
-        }
-        self._donation_items.append(item)
-        self.items_list.insert(
-            "",
-            "end",
+            "quantity": quantity_text,
+            "unit": unit,
+            "category": category,
+            "expiry_date": expiry,
+        }, None
+
+    def _clear_item_fields(self) -> None:
+        self.item_name.delete(0, "end")
+        self.item_quantity.delete(0, "end")
+        self.item_unit.delete(0, "end")
+        self.item_category.delete(0, "end")
+        self.item_expiry.delete(0, "end")
+
+    def _find_item_by_id(self, item_id: str) -> Optional[Dict[str, str]]:
+        for item in self._donation_items:
+            if item.get("_ui_id") == item_id:
+                return item
+        return None
+
+    def _update_item_row(self, item: Dict[str, str]) -> None:
+        item_id = item.get("_ui_id")
+        if not item_id:
+            return
+        self.items_list.item(
+            item_id,
             values=(
                 item["name"],
                 item["quantity"],
@@ -456,16 +541,50 @@ class IntrackGUI(tk.Tk):
                 item.get("expiry_date") or "",
             ),
         )
+
+    def _on_edit_selected(self) -> None:
+        selection = self.items_list.selection()
+        if not selection:
+            self._append_output("Select an item to edit.")
+            return
+        item_id = selection[0]
+        item = self._find_item_by_id(item_id)
+        if not item:
+            self._append_output("Selected item was not found.")
+            return
+        self._editing_item_id = item_id
         self.item_name.delete(0, "end")
+        self.item_name.insert(0, item.get("name", ""))
         self.item_quantity.delete(0, "end")
+        self.item_quantity.insert(0, item.get("quantity", ""))
         self.item_unit.delete(0, "end")
+        self.item_unit.insert(0, item.get("unit", ""))
         self.item_category.delete(0, "end")
+        self.item_category.insert(0, item.get("category") or "")
         self.item_expiry.delete(0, "end")
+        self.item_expiry.insert(0, item.get("expiry_date") or "")
+
+    def _on_remove_selected(self) -> None:
+        selection = self.items_list.selection()
+        if not selection:
+            self._append_output("Select an item to remove.")
+            return
+        item_id = selection[0]
+        self.items_list.delete(item_id)
+        self._donation_items = [
+            item for item in self._donation_items if item.get("_ui_id") != item_id
+        ]
+        if self._editing_item_id == item_id:
+            self._editing_item_id = None
+            self._clear_item_fields()
+        self._append_output("Item removed.")
 
     def _on_clear_items(self) -> None:
         self._donation_items.clear()
         for row in self.items_list.get_children():
             self.items_list.delete(row)
+        self._editing_item_id = None
+        self._clear_item_fields()
 
     def _resolve_donor(self) -> Optional[str]:
         donor_value = self._pick_value(
@@ -497,9 +616,13 @@ class IntrackGUI(tk.Tk):
         )
         try:
             recipient_id = resolve_recipient_id(recipient_value) if recipient_value else None
+            items_payload = [
+                {k: v for k, v in item.items() if k != "_ui_id"}
+                for item in self._donation_items
+            ]
             donation_id = add_donation(
                 donor_id,
-                list(self._donation_items),
+                items_payload,
                 recipient_id=recipient_id,
                 status=self.donation_status_combo.get(),
             )
@@ -518,15 +641,30 @@ class IntrackGUI(tk.Tk):
             printable = [
                 {
                     "_id": row.get("_id"),
-                    "donor_id": row.get("donor_id"),
+                    "donor_name": self._org_label(row.get("donor_id")),
+                    "recipient_name": self._org_label(
+                        row.get("recipient_id"), is_recipient=True
+                    ),
                     "status": row.get("status"),
                     "created_at": row.get("created_at"),
                     "items": len(row.get("items", [])),
+                    "item_types": self._item_types_label(row.get("items", [])),
                 }
                 for row in rows
             ]
             self._append_output(
-                format_table(printable, ["_id", "donor_id", "status", "created_at", "items"])
+                format_table(
+                    printable,
+                    [
+                        "_id",
+                        "donor_name",
+                        "recipient_name",
+                        "status",
+                        "created_at",
+                        "items",
+                        "item_types",
+                    ],
+                )
             )
         except Exception as exc:
             self._append_output(str(exc))
@@ -540,12 +678,38 @@ class IntrackGUI(tk.Tk):
                 "end",
                 values=(
                     row.get("_id"),
-                    row.get("donor_id"),
+                    self._org_label(row.get("donor_id")),
+                    self._org_label(row.get("recipient_id"), is_recipient=True),
                     row.get("status"),
                     row.get("created_at"),
                     len(row.get("items", [])),
+                    self._item_types_label(row.get("items", [])),
                 ),
             )
+
+    def _org_label(self, org_id: Optional[str], *, is_recipient: bool = False) -> str:
+        if not org_id:
+            return ""
+        if is_recipient:
+            for label, rec_id in self._recipient_options.items():
+                if rec_id == org_id:
+                    return label
+            return org_id
+        return self._donor_by_id.get(org_id, org_id)
+
+    def _item_types_label(self, items: List[Dict[str, str]]) -> str:
+        names = [item.get("name", "").strip() for item in items if item.get("name")]
+        if not names:
+            return ""
+        unique = []
+        seen = set()
+        for name in names:
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(name)
+        return ", ".join(unique)
 
     def _on_update_status(self) -> None:
         donation_id = self.update_id.get().strip()

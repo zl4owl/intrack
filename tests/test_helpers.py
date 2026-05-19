@@ -3,6 +3,7 @@ import unittest
 from src.data_handling import build_donation_doc, normalize_item_name, parse_iso_date
 
 
+# Attempt to parse data into expected formats and checks for correct handling of edge cases
 class HelpersTest(unittest.TestCase):
     def test_normalize_item_name(self) -> None:
         self.assertEqual(normalize_item_name("  Canned   Beans "), "canned beans")
@@ -31,7 +32,7 @@ class HelpersTest(unittest.TestCase):
         self.assertEqual(doc["items"][0]["name"], "apples")
         self.assertEqual(doc["items"][0]["quantity"], 12.0)
 
-
+# Call __main__ to test
 if __name__ == "__main__":
     unittest.main()
 

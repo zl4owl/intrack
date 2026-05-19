@@ -159,9 +159,4 @@ Summary:
 
 ```bash
 python intrack.py summary
-```
-
-### Environment Variables
-
-- `MONGODB_URI`: override the default MongoDB URI.
-- `MONGODB_DB`: override the database name (default `food_donations`).
+``` 
